@@ -37,6 +37,6 @@ public class ChatService {
 
     public List<ChatMessageEntity> getRecentMessages() {
 
-        return repository.findAllByOrderBySentAtAsc();
+        return repository.findTop20ByReceiverIsNullOrderBySentAtAsc();
     }
 }

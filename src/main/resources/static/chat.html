@@ -28,8 +28,13 @@
 
 <h2>Realtime Chat Application</h2>
 
+<input type="text" id="receiver" placeholder="Send private message to…" />
+
 <input type="text" id="message" placeholder="Type a message" />
+
 <button onclick="sendMessage()">Send</button>
+<button onclick="sendPrivate()">Send Private</button>
+
 
 <ul id="messages"></ul>
 
@@ -37,6 +42,7 @@
     let stompClient = null;
     let notifications = [];
     let unreadCount = 0;
+    let activeChatUser = null;
 
     async function loadUnreadNotifications() {
         const res = await fetch("/api/notify/unread");
@@ -44,6 +50,22 @@
         unreadCount = notifications.length;
         updateBell();
         renderNotifications();
+    }
+
+    async function loadPrivateChat(user) {
+        if (activeChatUser === user) return; // avoid reload
+
+        activeChatUser = user;
+
+        const res = await fetch(`/api/private/history/${user}`);
+        const messages = await res.json();
+
+        const list = document.getElementById("messages");
+        list.innerHTML = "";
+
+        messages.forEach(m => {
+            appendMessage(m.sender + " (private): " + m.content, true);
+        });
     }
 
     function updateBell() {
@@ -69,6 +91,13 @@
 
             li.onclick = async () => {
                 await fetch(`/api/notify/read/${n.id}`, { method: "POST" });
+
+                // extract username from notification text
+                const sender = n.message.replace("Private message from ", "");
+
+                document.getElementById("receiver").value = sender;
+                await loadPrivateChat(sender);
+
                 notifications = notifications.filter(x => x.id !== n.id);
                 unreadCount--;
                 updateBell();
@@ -79,8 +108,13 @@
         });
     }
 
-    function connect() {
-        loadUnreadNotifications();
+    async function connect() {
+        await loadUnreadNotifications();
+
+        const receiver = document.getElementById("receiver").value;
+        if (receiver) {
+            await loadPrivateChat(receiver);
+        }
 
         const socket = new SockJS('/ws');
         stompClient = Stomp.over(socket);
@@ -101,6 +135,25 @@
                 updateBell();
                 renderNotifications();
             });
+            stompClient.subscribe('/user/queue/private', msg => {
+                const m = JSON.parse(msg.body);
+                const currentChat = document.getElementById("receiver").value;
+
+                if (currentChat === m.sender) {
+                    appendMessage(m.sender + " (private): " + m.content, true);
+                    return;
+                }
+
+                notifications.unshift({
+                    id: m.id ?? Date.now(),
+                    message: "Private message from " + m.sender
+                });
+
+                unreadCount++;
+                updateBell();
+                renderNotifications();
+            });
+
         });
     }
 
@@ -131,11 +184,29 @@
             .catch(err => console.error("Messages load failed", err));
     }
 
-    // LOAD ON PAGE REFRESH
+    function sendPrivate() {
+        const receiver = document.getElementById("receiver").value;
+        const content = document.getElementById("message").value;
+
+        fetch("/api/private/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `receiver=${receiver}&content=${encodeURIComponent(content)}`
+        });
+
+        appendMessage("me (private): " + content, true);
+        document.getElementById("message").value = "";
+    }
+
+    function appendMessage(text, isPrivate = false) {
+        const li = document.createElement("li");
+        li.innerText = isPrivate ? "🔒 " + text : text;
+        document.getElementById("messages").appendChild(li);
+    }
 
 
     connect();
-    loadMessages();
+    loadMessages(); //load message on refresh
 </script>
 
 </body>
