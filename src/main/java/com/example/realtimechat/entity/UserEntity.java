@@ -3,24 +3,22 @@ package com.example.realtimechat.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.LocalDateTime;
-
 @Entity
-@Table(name = "notifications")
+@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class NotificationEntity {
+public class UserEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true, nullable = false)
     private String username;
-    private String message;
-    @Column(name = "is_read")
-    private boolean isRead;
-    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private String password;
 }

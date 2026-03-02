@@ -1,7 +1,10 @@
 package com.example.realtimechat.service;
 
 import com.example.realtimechat.entity.ChatMessageEntity;
+import com.example.realtimechat.entity.MessageStatus;
+import com.example.realtimechat.entity.MessageType;
 import com.example.realtimechat.repository.ChatMessageRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -14,29 +17,78 @@ public class ChatService {
     private final ChatMessageRepository repository;
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationService notificationService;
+    private final OnlineUserService onlineUserService;
 
     public ChatService(ChatMessageRepository repository,
                        SimpMessagingTemplate messagingTemplate,
-                       NotificationService notificationService) {
+                       NotificationService notificationService, OnlineUserService onlineUserService) {
         this.repository = repository;
         this.messagingTemplate = messagingTemplate;
         this.notificationService = notificationService;
+        this.onlineUserService = onlineUserService;
     }
 
-    public void sendMessage(String sender, String content) {
-        ChatMessageEntity entity = ChatMessageEntity.builder()
+    @Transactional
+    public void sendPublicMessage(String sender, String content) {
+
+        ChatMessageEntity message = ChatMessageEntity.builder()
                 .sender(sender)
                 .content(content)
-                .sentAt(LocalDateTime.now())
+                .type(MessageType.PUBLIC)
                 .build();
 
-        repository.save(entity);
-        messagingTemplate.convertAndSend("/topic/messages", entity);
-        notificationService.sendNotification("riya", "new message from" + sender);
+        repository.save(message);
+
+        messagingTemplate.convertAndSend("/topic/messages", message);
     }
 
-    public List<ChatMessageEntity> getRecentMessages() {
+    @Transactional
+    public void sendPrivateMessage(String sender, String receiver, String content) {
 
-        return repository.findTop20ByReceiverIsNullOrderBySentAtAsc();
+        ChatMessageEntity message = ChatMessageEntity.builder()
+                .sender(sender)
+                .receiver(receiver)
+                .content(content)
+                .type(MessageType.PRIVATE)
+                .build();
+
+        repository.save(message);
+
+        if (onlineUserService.isOnline(receiver)) {
+
+            message.setStatus(MessageStatus.DELIVERED);
+            repository.save(message);
+
+            messagingTemplate.convertAndSendToUser(
+                    receiver,
+                    "/queue/messages",
+                    message
+            );
+
+        } else {
+
+            notificationService.sendNotification(
+                    receiver,
+                    "Private message from " + sender
+            );
+        }
+    }
+
+    @Transactional
+    public void markAsRead(Long messageId) {
+
+        ChatMessageEntity message = repository.findById(messageId)
+                .orElseThrow();
+
+        message.setStatus(MessageStatus.READ);
+        repository.save(message);
+    }
+
+    public List<ChatMessageEntity> getPublicMessages() {
+        return repository.findTop20ByTypeOrderBySentAtAsc(MessageType.PUBLIC);
+    }
+
+    public List<ChatMessageEntity> getPrivateHistory(String user1, String user2) {
+        return repository.findPrivateChat(user1, user2);
     }
 }

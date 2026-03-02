@@ -25,7 +25,7 @@ public class NotificationService {
         NotificationEntity entity = NotificationEntity.builder()
                 .username(username)
                 .message(message)
-                .read(false)
+                .isRead(false)
                 .createdAt(LocalDateTime.now())
                 .build();
 
