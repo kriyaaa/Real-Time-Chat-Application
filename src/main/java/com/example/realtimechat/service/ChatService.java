@@ -5,6 +5,7 @@ import com.example.realtimechat.entity.MessageStatus;
 import com.example.realtimechat.entity.MessageType;
 import com.example.realtimechat.repository.ChatMessageRepository;
 import jakarta.transaction.Transactional;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
@@ -18,15 +19,21 @@ public class ChatService {
     private final SimpMessagingTemplate messagingTemplate;
     private final NotificationService notificationService;
     private final OnlineUserService onlineUserService;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     public ChatService(ChatMessageRepository repository,
                        SimpMessagingTemplate messagingTemplate,
-                       NotificationService notificationService, OnlineUserService onlineUserService) {
+                       NotificationService notificationService,
+                       OnlineUserService onlineUserService,
+                       RedisTemplate<String, Object> redisTemplate) {
         this.repository = repository;
         this.messagingTemplate = messagingTemplate;
         this.notificationService = notificationService;
         this.onlineUserService = onlineUserService;
+        this.redisTemplate = redisTemplate;
     }
+
+
 
     @Transactional
     public void sendPublicMessage(String sender, String content) {
@@ -35,11 +42,13 @@ public class ChatService {
                 .sender(sender)
                 .content(content)
                 .type(MessageType.PUBLIC)
+                .status(MessageStatus.SENT)
+                .sentAt(LocalDateTime.now())
                 .build();
 
         repository.save(message);
 
-        messagingTemplate.convertAndSend("/topic/messages", message);
+        redisTemplate.convertAndSend("chat-channel", message);
     }
 
     @Transactional
@@ -50,6 +59,8 @@ public class ChatService {
                 .receiver(receiver)
                 .content(content)
                 .type(MessageType.PRIVATE)
+                .status(MessageStatus.SENT)
+                .sentAt(LocalDateTime.now())
                 .build();
 
         repository.save(message);

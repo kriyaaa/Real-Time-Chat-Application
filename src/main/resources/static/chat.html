@@ -1,213 +1,1177 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Realtime Chat</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexChat</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2230;
+    --border: #2a2f42;
+    --accent: #4f8ef7;
+    --accent2: #7c5cfc;
+    --green: #3ecf8e;
+    --red: #f7604f;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --radius: 12px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── AUTH SCREEN ── */
+  #auth-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, #1a1f35 0%, var(--bg) 70%);
+  }
+
+  .auth-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px;
+    width: 380px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+  }
+
+  .auth-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+
+  .auth-logo-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .auth-logo span {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.5px;
+  }
+
+  .auth-tabs {
+    display: flex;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 28px;
+  }
+
+  .auth-tab {
+    flex: 1;
+    padding: 8px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 6px;
+    color: var(--muted);
+    transition: all 0.2s;
+    border: none;
+    background: none;
+  }
+
+  .auth-tab.active {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .auth-form { display: flex; flex-direction: column; gap: 14px; }
+
+  .auth-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .auth-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .auth-input:focus { border-color: var(--accent); }
+
+  .auth-btn {
+    width: 100%;
+    padding: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: opacity 0.2s, transform 0.1s;
+  }
+
+  .auth-btn:hover { opacity: 0.9; }
+  .auth-btn:active { transform: scale(0.98); }
+  .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .auth-error {
+    font-size: 13px;
+    color: var(--red);
+    text-align: center;
+    min-height: 18px;
+  }
+
+  .auth-success {
+    font-size: 13px;
+    color: var(--green);
+    text-align: center;
+    min-height: 18px;
+  }
+
+  /* ── CHAT SCREEN ── */
+  #chat-screen {
+    display: none;
+    height: 100vh;
+    flex-direction: row;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 18px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .sidebar-logo {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 600; font-size: 16px;
+  }
+
+  .sidebar-logo-icon {
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+
+  .logout-btn {
+    background: none; border: none;
+    color: var(--muted); cursor: pointer; font-size: 18px;
+    padding: 4px; border-radius: 6px;
+    transition: color 0.2s, background 0.2s;
+  }
+  .logout-btn:hover { color: var(--red); background: rgba(247,96,79,0.1); }
+
+  .current-user-badge {
+    margin: 12px 16px;
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px;
+  }
+
+  .avatar {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; flex-shrink: 0;
+  }
+
+  .sidebar-section {
+    padding: 8px 16px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+
+  .channel-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px;
+    cursor: pointer;
+    border-radius: 0;
+    transition: background 0.15s;
+    font-size: 14px;
+    color: var(--muted);
+    position: relative;
+  }
+
+  .channel-item:hover { background: var(--surface2); color: var(--text); }
+  .channel-item.active { background: rgba(79,142,247,0.12); color: var(--accent); }
+  .channel-item.active::before {
+    content: '';
+    position: absolute; left: 0; top: 4px; bottom: 4px;
+    width: 3px; background: var(--accent); border-radius: 0 3px 3px 0;
+  }
+
+  .channel-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  .online-dot {
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px var(--green);
+  }
+
+  .notif-badge {
+    margin-left: auto;
+    background: var(--red);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    min-width: 18px;
+    text-align: center;
+  }
+
+  /* DM section */
+  .dm-input-wrap {
+    padding: 8px 16px;
+    display: flex; gap: 6px;
+  }
+
+  .dm-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 10px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .dm-input:focus { border-color: var(--accent); }
+
+  .dm-go-btn {
+    background: var(--accent);
+    border: none; border-radius: 6px;
+    color: white; cursor: pointer;
+    padding: 7px 10px; font-size: 13px;
+  }
+
+  /* Online users */
+  .online-list { padding: 0 0 8px; }
+
+  .online-user-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 13px; color: var(--muted);
+    transition: background 0.15s;
+  }
+
+  .online-user-item:hover { background: var(--surface2); color: var(--text); }
+
+  /* Main chat */
+  .chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface);
+  }
+
+  .chat-header-icon { font-size: 18px; }
+
+  .chat-header-title { font-weight: 600; font-size: 15px; }
+  .chat-header-sub { font-size: 12px; color: var(--muted); }
+
+  .notif-bell-btn {
+    margin-left: auto;
+    background: none; border: none;
+    color: var(--muted); cursor: pointer;
+    font-size: 20px; padding: 4px 8px;
+    border-radius: 8px; position: relative;
+    transition: color 0.2s, background 0.2s;
+  }
+  .notif-bell-btn:hover { color: var(--text); background: var(--surface2); }
+
+  .notif-bubble {
+    position: absolute; top: 0; right: 0;
+    background: var(--red); color: white;
+    font-size: 10px; font-weight: 700;
+    width: 16px; height: 16px;
+    border-radius: 50%; display: none;
+    align-items: center; justify-content: center;
+  }
+
+  /* Notification dropdown */
+  .notif-dropdown {
+    display: none;
+    position: absolute; top: 52px; right: 16px;
+    width: 300px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    z-index: 100;
+    max-height: 360px;
+    overflow-y: auto;
+  }
+
+  .notif-dropdown.open { display: block; }
+
+  .notif-dropdown-header {
+    padding: 14px 16px 10px;
+    font-size: 13px; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+
+  .notif-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    display: flex; align-items: flex-start; gap: 10px;
+    transition: background 0.15s;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .notif-item:hover { background: var(--surface2); }
+  .notif-item-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .notif-item-text { font-size: 13px; }
+  .notif-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  /* Messages */
+  .messages-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+
+  .messages-area::-webkit-scrollbar { width: 4px; }
+  .messages-area::-webkit-scrollbar-track { background: transparent; }
+  .messages-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .msg-group { margin-bottom: 12px; }
+
+  .msg-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 2px 0;
+  }
+
+  .msg-row.mine { flex-direction: row-reverse; }
+
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .msg-avatar.mine-av {
+    background: linear-gradient(135deg, var(--green), #1a9e62);
+  }
+
+  .msg-content { max-width: 70%; }
+
+  .msg-meta {
+    font-size: 11px; color: var(--muted);
+    margin-bottom: 3px;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .msg-row.mine .msg-meta { justify-content: flex-end; }
+
+  .msg-sender { font-weight: 500; font-size: 12px; }
+
+  .msg-bubble {
+    background: var(--surface2);
+    border-radius: 4px 12px 12px 12px;
+    padding: 9px 13px;
+    font-size: 14px;
+    line-height: 1.5;
+    word-break: break-word;
+    border: 1px solid var(--border);
+  }
+
+  .msg-row.mine .msg-bubble {
+    background: rgba(79,142,247,0.15);
+    border-color: rgba(79,142,247,0.3);
+    border-radius: 12px 4px 12px 12px;
+    color: #c8d8ff;
+  }
+
+  .msg-private .msg-bubble {
+    background: rgba(124,92,252,0.12);
+    border-color: rgba(124,92,252,0.3);
+  }
+
+  .msg-private.mine .msg-bubble {
+    background: rgba(124,92,252,0.2);
+  }
+
+  .private-tag {
+    font-size: 10px; color: var(--accent2);
+    background: rgba(124,92,252,0.15);
+    padding: 1px 5px; border-radius: 4px;
+  }
+
+  .msg-time { font-size: 11px; color: var(--muted); }
+
+  .msg-status { font-size: 10px; color: var(--muted); margin-top: 2px; text-align: right; }
+
+  /* Date divider */
+  .date-divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 16px 0 8px;
+    color: var(--muted); font-size: 12px;
+  }
+  .date-divider::before, .date-divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--border);
+  }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    color: var(--muted); gap: 8px;
+  }
+  .empty-state-icon { font-size: 40px; opacity: 0.4; }
+  .empty-state-text { font-size: 14px; }
+
+  /* Input area */
+  .input-area {
+    padding: 14px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+
+  .msg-input-wrap {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex; align-items: center;
+    transition: border-color 0.2s;
+  }
+
+  .msg-input-wrap:focus-within { border-color: var(--accent); }
+
+  .msg-input {
+    flex: 1;
+    background: none; border: none;
+    padding: 11px 14px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    resize: none;
+    max-height: 120px;
+  }
+
+  .send-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: 8px;
+    width: 40px; height: 40px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 16px;
+    transition: opacity 0.2s, transform 0.1s;
+    flex-shrink: 0;
+  }
+
+  .send-btn:hover { opacity: 0.9; }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 18px;
+    font-size: 13px; color: var(--text);
+    z-index: 999; opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { border-color: var(--green); color: var(--green); }
+  .toast.error { border-color: var(--red); color: var(--red); }
+
+  /* Presence indicator in header */
+  .presence-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 6px var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .scrollbar-hidden { scrollbar-width: none; }
+  .scrollbar-hidden::-webkit-scrollbar { display: none; }
+</style>
 </head>
 <body>
 
-<!-- 🔔 Notification Bell -->
-<div style="position: fixed; top: 20px; right: 30px;">
-    <button onclick="toggleNotifications()" style="font-size: 22px;">
-        🔔
-        <span id="notif-count"
-              style="background:red;color:white;border-radius:50%;
-                     padding:2px 6px; display:none;">0</span>
-    </button>
-
-    <div id="notif-dropdown"
-         style="display:none; position:absolute; right:0;
-                background:#fff; border:1px solid #ccc;
-                width:250px; max-height:300px; overflow:auto;">
-        <ul id="notif-list" style="list-style:none; padding:10px;"></ul>
+<!-- ══════════════════════════════════
+     AUTH SCREEN
+══════════════════════════════════ -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">💬</div>
+      <span>NexChat</span>
     </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" id="tab-register" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <!-- Login form -->
+    <div id="form-login" class="auth-form">
+      <div>
+        <label class="auth-label">Username</label>
+        <input class="auth-input" id="login-username" type="text" placeholder="your username" autocomplete="username">
+      </div>
+      <div>
+        <label class="auth-label">Password</label>
+        <input class="auth-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <p class="auth-error" id="login-error"></p>
+      <button class="auth-btn" id="login-btn" onclick="doLogin()">Sign In →</button>
+    </div>
+
+    <!-- Register form -->
+    <div id="form-register" class="auth-form" style="display:none">
+      <div>
+        <label class="auth-label">Username</label>
+        <input class="auth-input" id="reg-username" type="text" placeholder="choose a username" autocomplete="username">
+      </div>
+      <div>
+        <label class="auth-label">Password</label>
+        <input class="auth-input" id="reg-password" type="password" placeholder="••••••••" autocomplete="new-password">
+      </div>
+      <p class="auth-error" id="reg-error"></p>
+      <p class="auth-success" id="reg-success"></p>
+      <button class="auth-btn" id="reg-btn" onclick="doRegister()">Create Account →</button>
+    </div>
+  </div>
 </div>
 
-<h2>Realtime Chat Application</h2>
+<!-- ══════════════════════════════════
+     CHAT SCREEN
+══════════════════════════════════ -->
+<div id="chat-screen">
 
-<input type="text" id="receiver" placeholder="Send private message to…" />
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">💬</div>
+        <span>NexChat</span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" title="Logout">⇠</button>
+    </div>
 
-<input type="text" id="message" placeholder="Type a message" />
+    <div class="current-user-badge">
+      <div class="avatar" id="sidebar-avatar">?</div>
+      <div>
+        <div style="font-size:13px;font-weight:500" id="sidebar-username">—</div>
+        <div style="font-size:11px;color:var(--green)">● Online</div>
+      </div>
+    </div>
 
-<button onclick="sendMessage()">Send</button>
-<button onclick="sendPrivate()">Send Private</button>
+    <div style="flex:1;overflow-y:auto" class="scrollbar-hidden">
+      <!-- Channels -->
+      <div class="sidebar-section" style="margin-top:8px">Channels</div>
+      <div class="channel-item active" id="nav-public" onclick="switchToPublic()">
+        <span class="channel-icon">#</span>
+        <span>general</span>
+      </div>
 
+      <!-- Direct Messages -->
+      <div class="sidebar-section" style="margin-top:12px">Direct Messages</div>
+      <div class="dm-input-wrap">
+        <input class="dm-input" id="dm-target" placeholder="Username…" onkeydown="if(event.key==='Enter') openDM()">
+        <button class="dm-go-btn" onclick="openDM()">→</button>
+      </div>
+      <div id="dm-list"></div>
 
-<ul id="messages"></ul>
+      <!-- Online Users -->
+      <div class="sidebar-section" style="margin-top:12px">Online Now</div>
+      <div class="online-list" id="online-list">
+        <div style="padding:6px 16px;font-size:12px;color:var(--muted)">Loading…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Chat -->
+  <div class="chat-main">
+    <div class="chat-header" style="position:relative">
+    <div class="chat-header-icon" id="chat-icon">#</div>
+    <div>
+        <div style="display:flex;align-items:center;gap:6px">
+        <div class="chat-header-title" id="chat-title">general</div>
+        <div class="presence-dot" id="ws-dot" title="Connected" style="display:none"></div>
+        </div>
+        <div class="chat-header-sub" id="chat-sub">Public channel</div>
+    </div>
+
+    <button class="notif-bell-btn" onclick="toggleNotifDropdown()" style="margin-left:auto">
+        🔔
+        <div class="notif-bubble" id="notif-bubble"></div>
+    </button>
+
+    <div class="notif-dropdown" id="notif-dropdown">
+        <div class="notif-dropdown-header">Notifications</div>
+        <div id="notif-list"></div>
+    </div>
+    </div>
+
+    <div class="messages-area" id="messages-area">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-state-icon">💬</div>
+        <div class="empty-state-text">No messages yet. Say hello!</div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="msg-input-wrap">
+        <input class="msg-input"
+               id="msg-input"
+               placeholder="Message #general…"
+               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}">
+      </div>
+      <button class="send-btn" onclick="sendMessage()" id="send-btn">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
 
 <script>
-    let stompClient = null;
-    let notifications = [];
-    let unreadCount = 0;
-    let activeChatUser = null;
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let token = localStorage.getItem('nc_token') || null;
+let currentUser = localStorage.getItem('nc_user') || null;
+let stompClient = null;
+let activeChat = { type: 'public', user: null };
+let notifications = [];
+let dmUsers = [];
+let onlineUsers = new Set();
 
-    async function loadUnreadNotifications() {
-        const res = await fetch("/api/notify/unread");
-        notifications = await res.json();
-        unreadCount = notifications.length;
-        updateBell();
-        renderNotifications();
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+window.onload = () => {
+  if (token && currentUser) {
+    enterChat();
+  }
+
+  // Enter on keydown for auth forms
+  document.getElementById('login-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+  document.getElementById('reg-password').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doRegister();
+  });
+
+  // Close notif dropdown on outside click
+  document.addEventListener('click', e => {
+    const dd = document.getElementById('notif-dropdown');
+    if (!dd.contains(e.target) && !e.target.closest('.notif-bell-btn')) {
+      dd.classList.remove('open');
+    }
+  });
+};
+
+// ══════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════
+function switchTab(tab) {
+  document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  document.getElementById('form-login').style.display = tab === 'login' ? 'flex' : 'none';
+  document.getElementById('form-register').style.display = tab === 'register' ? 'flex' : 'none';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('reg-error').textContent = '';
+  document.getElementById('reg-success').textContent = '';
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-btn');
+
+  if (!username || !password) { errEl.textContent = 'Please fill in all fields.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  errEl.textContent = '';
+
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    if (!res.ok) {
+      errEl.textContent = 'Invalid username or password.';
+      return;
     }
 
-    async function loadPrivateChat(user) {
-        if (activeChatUser === user) return; // avoid reload
+    const data = await res.json();
+    token = data.token;
+    currentUser = username;
+    localStorage.setItem('nc_token', token);
+    localStorage.setItem('nc_user', currentUser);
+    enterChat();
+  } catch {
+    errEl.textContent = 'Server error. Is the app running?';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign In →';
+  }
+}
 
-        activeChatUser = user;
+async function doRegister() {
+  const username = document.getElementById('reg-username').value.trim();
+  const password = document.getElementById('reg-password').value;
+  const errEl = document.getElementById('reg-error');
+  const sucEl = document.getElementById('reg-success');
+  const btn = document.getElementById('reg-btn');
 
-        const res = await fetch(`/api/private/history/${user}`);
-        const messages = await res.json();
+  if (!username || !password) { errEl.textContent = 'Please fill in all fields.'; return; }
+  if (password.length < 4) { errEl.textContent = 'Password must be at least 4 characters.'; return; }
 
-        const list = document.getElementById("messages");
-        list.innerHTML = "";
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+  errEl.textContent = '';
+  sucEl.textContent = '';
 
-        messages.forEach(m => {
-            appendMessage(m.sender + " (private): " + m.content, true);
-        });
+  try {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+
+    const text = await res.text();
+
+    if (text.includes('already exists')) {
+      errEl.textContent = 'Username already taken.';
+    } else {
+      sucEl.textContent = '✓ Account created! Signing you in…';
+      setTimeout(() => {
+        document.getElementById('login-username').value = username;
+        document.getElementById('login-password').value = password;
+        switchTab('login');
+        doLogin();
+      }, 900);
     }
+  } catch {
+    errEl.textContent = 'Server error. Is the app running?';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create Account →';
+  }
+}
 
-    function updateBell() {
-        const badge = document.getElementById("notif-count");
-        badge.style.display = unreadCount > 0 ? "inline" : "none";
-        badge.innerText = unreadCount;
-    }
+function doLogout() {
+  if (stompClient) stompClient.disconnect();
+  token = null; currentUser = null;
+  localStorage.removeItem('nc_token');
+  localStorage.removeItem('nc_user');
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('chat-screen').style.display = 'none';
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('messages-area').innerHTML = '<div class="empty-state" id="empty-state"><div class="empty-state-icon">💬</div><div class="empty-state-text">No messages yet. Say hello!</div></div>';
+}
 
-    function toggleNotifications() {
-        const dropdown = document.getElementById("notif-dropdown");
-        dropdown.style.display =
-            dropdown.style.display === "none" ? "block" : "none";
-    }
+// ══════════════════════════════════════
+// ENTER CHAT
+// ══════════════════════════════════════
+function enterChat() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('chat-screen').style.display = 'flex';
 
-    function renderNotifications() {
-        const list = document.getElementById("notif-list");
-        list.innerHTML = "";
+  document.getElementById('sidebar-username').textContent = currentUser;
+  document.getElementById('sidebar-avatar').textContent = currentUser[0].toUpperCase();
 
-        notifications.forEach(n => {
-            const li = document.createElement("li");
-            li.innerText = n.message;
-            li.style.cursor = "pointer";
+  loadPublicMessages();
+  loadNotifications();
+  loadOnlineUsers();
+  connectWebSocket();
 
-            li.onclick = async () => {
-                await fetch(`/api/notify/read/${n.id}`, { method: "POST" });
+  setInterval(loadOnlineUsers, 15000);
+}
 
-                // extract username from notification text
-                const sender = n.message.replace("Private message from ", "");
+// ══════════════════════════════════════
+// WEBSOCKET
+// ══════════════════════════════════════
+function connectWebSocket() {
+  const socket = new SockJS(`/ws?token=${token}`);
+  stompClient = Stomp.over(socket);
+  stompClient.debug = null; // silence logs
 
-                document.getElementById("receiver").value = sender;
-                await loadPrivateChat(sender);
+  stompClient.connect(
+    { Authorization: `Bearer ${token}` },
+    () => {
+      document.getElementById('ws-dot').style.display = 'block';
 
-                notifications = notifications.filter(x => x.id !== n.id);
-                unreadCount--;
-                updateBell();
-                renderNotifications();
-            };
-
-            list.appendChild(li);
-        });
-    }
-
-    async function connect() {
-        await loadUnreadNotifications();
-
-        const receiver = document.getElementById("receiver").value;
-        if (receiver) {
-            await loadPrivateChat(receiver);
+      // Public messages
+      stompClient.subscribe('/topic/public', msg => {
+        const m = JSON.parse(msg.body);
+        if (activeChat.type === 'public') {
+          appendMessage(m, 'public');
         }
+      });
 
-        const socket = new SockJS('/ws');
-        stompClient = Stomp.over(socket);
+      // Private messages
+      stompClient.subscribe('/user/queue/messages', msg => {
+        const m = JSON.parse(msg.body);
+        if (activeChat.type === 'dm' && activeChat.user === m.sender) {
+          appendMessage(m, 'private');
+        } else {
+          addNotification({ id: Date.now(), message: `Private message from ${m.sender}`, sender: m.sender });
+          showToast(`💬 New message from ${m.sender}`);
+          addDmUser(m.sender);
+        }
+      });
 
-        stompClient.connect({}, () => {
+      // Notifications
+      stompClient.subscribe('/user/queue/notifications', msg => {
+        const n = JSON.parse(msg.body);
+        addNotification(n);
+      });
 
-            stompClient.subscribe('/topic/messages', msg => {
-                const m = JSON.parse(msg.body);
-                const li = document.createElement("li");
-                li.innerText = m.sender + ": " + m.content;
-                document.getElementById("messages").appendChild(li);
-            });
-
-            stompClient.subscribe('/user/queue/notifications', msg => {
-                const n = JSON.parse(msg.body);
-                notifications.unshift(n);
-                unreadCount++;
-                updateBell();
-                renderNotifications();
-            });
-            stompClient.subscribe('/user/queue/private', msg => {
-                const m = JSON.parse(msg.body);
-                const currentChat = document.getElementById("receiver").value;
-
-                if (currentChat === m.sender) {
-                    appendMessage(m.sender + " (private): " + m.content, true);
-                    return;
-                }
-
-                notifications.unshift({
-                    id: m.id ?? Date.now(),
-                    message: "Private message from " + m.sender
-                });
-
-                unreadCount++;
-                updateBell();
-                renderNotifications();
-            });
-
-        });
+      // Presence
+      stompClient.subscribe('/topic/presence', msg => {
+        const p = JSON.parse(msg.body);
+        if (p.status === 'ONLINE') {
+          onlineUsers.add(p.username);
+          showToast(`🟢 ${p.username} is online`);
+        } else {
+          onlineUsers.delete(p.username);
+        }
+        renderOnlineUsers();
+      });
+    },
+    err => {
+      document.getElementById('ws-dot').style.display = 'none';
+      console.warn('WS error', err);
+      setTimeout(connectWebSocket, 3000);
     }
+  );
+}
 
-    function sendMessage() {
-        const content = document.getElementById("message").value;
+// ══════════════════════════════════════
+// API HELPERS
+// ══════════════════════════════════════
+function authHeaders() {
+  return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+}
 
-        fetch("/chat/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: "content=" + encodeURIComponent(content)
-        });
+async function apiFetch(url, opts = {}) {
+  opts.headers = { ...authHeaders(), ...(opts.headers || {}) };
+  const res = await fetch(url, opts);
+  if (res.status === 401) { doLogout(); return null; }
+  return res;
+}
 
-        document.getElementById("message").value = "";
+// ══════════════════════════════════════
+// MESSAGES
+// ══════════════════════════════════════
+async function loadPublicMessages() {
+  const res = await apiFetch('/chat/public');
+  if (!res) return;
+  const msgs = await res.json();
+  clearMessages();
+  msgs.forEach(m => appendMessage(m, 'public'));
+  scrollBottom();
+}
+
+async function loadPrivateHistory(user) {
+  const res = await apiFetch(`/chat/private/${user}`);
+  if (!res) return;
+  const msgs = await res.json();
+  clearMessages();
+  msgs.forEach(m => appendMessage(m, 'private'));
+  scrollBottom();
+}
+
+function clearMessages() {
+  document.getElementById('messages-area').innerHTML = '';
+}
+
+function appendMessage(m, type) {
+  const area = document.getElementById('messages-area');
+
+  // Remove empty state
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+
+  const isMine = m.sender === currentUser;
+  const row = document.createElement('div');
+  row.className = `msg-row${isMine ? ' mine' : ''}${type === 'private' ? ' msg-private' : ''}`;
+
+  const initial = (m.sender || '?')[0].toUpperCase();
+  const timeStr = m.sentAt ? new Date(m.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+  row.innerHTML = `
+    <div class="msg-avatar${isMine ? ' mine-av' : ''}">${initial}</div>
+    <div class="msg-content">
+      <div class="msg-meta">
+        ${!isMine ? `<span class="msg-sender">${m.sender}</span>` : ''}
+        ${type === 'private' ? '<span class="private-tag">DM</span>' : ''}
+        <span class="msg-time">${timeStr}</span>
+      </div>
+      <div class="msg-bubble">${escHtml(m.content)}</div>
+      ${isMine ? `<div class="msg-status">${m.status || 'SENT'}</div>` : ''}
+    </div>
+  `;
+
+  area.appendChild(row);
+  scrollBottom();
+}
+
+function scrollBottom() {
+  const area = document.getElementById('messages-area');
+  area.scrollTop = area.scrollHeight;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const content = input.value.trim();
+  if (!content) return;
+
+  input.value = '';
+
+  if (activeChat.type === 'public') {
+    await apiFetch(`/chat/public?content=${encodeURIComponent(content)}`, { method: 'POST' });
+  } else {
+    const res = await apiFetch(`/chat/private?receiver=${activeChat.user}&content=${encodeURIComponent(content)}`, { method: 'POST' });
+    if (res) {
+      // Optimistically show sent message
+      appendMessage({ sender: currentUser, content, sentAt: new Date().toISOString(), status: 'SENT' }, 'private');
     }
-    function loadMessages() {
-        fetch("/chat/messages")
-            .then(res => res.json())
-            .then(messages => {
-                const list = document.getElementById("messages");
-                list.innerHTML = ""; // clear UI
+  }
+}
 
-                messages.forEach(msg => {
-                    const li = document.createElement("li");
-                    li.innerText = msg.sender + ": " + msg.content;
-                    list.appendChild(li);
-                });
-            })
-            .catch(err => console.error("Messages load failed", err));
-    }
+// ══════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════
+function switchToPublic() {
+  activeChat = { type: 'public', user: null };
+  document.getElementById('chat-icon').textContent = '#';
+  document.getElementById('chat-title').textContent = 'general';
+  document.getElementById('chat-sub').textContent = 'Public channel';
+  document.getElementById('msg-input').placeholder = 'Message #general…';
+  document.getElementById('nav-public').classList.add('active');
+  document.querySelectorAll('.dm-item').forEach(el => el.classList.remove('active'));
+  loadPublicMessages();
+}
 
-    function sendPrivate() {
-        const receiver = document.getElementById("receiver").value;
-        const content = document.getElementById("message").value;
+function openDM() {
+  const user = document.getElementById('dm-target').value.trim();
+  if (!user || user === currentUser) return;
+  document.getElementById('dm-target').value = '';
+  switchToDM(user);
+}
 
-        fetch("/api/private/send", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `receiver=${receiver}&content=${encodeURIComponent(content)}`
-        });
+function switchToDM(user) {
+  activeChat = { type: 'dm', user };
+  document.getElementById('chat-icon').textContent = '👤';
+  document.getElementById('chat-title').textContent = user;
+  document.getElementById('chat-sub').textContent = 'Direct message';
+  document.getElementById('msg-input').placeholder = `Message ${user}…`;
+  document.getElementById('nav-public').classList.remove('active');
+  document.querySelectorAll('.dm-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.user === user);
+  });
+  addDmUser(user);
+  loadPrivateHistory(user);
+}
 
-        appendMessage("me (private): " + content, true);
-        document.getElementById("message").value = "";
-    }
+function addDmUser(user) {
+  if (!dmUsers.includes(user) && user !== currentUser) {
+    dmUsers.push(user);
+    renderDmList();
+  }
+}
 
-    function appendMessage(text, isPrivate = false) {
-        const li = document.createElement("li");
-        li.innerText = isPrivate ? "🔒 " + text : text;
-        document.getElementById("messages").appendChild(li);
-    }
+function renderDmList() {
+  const list = document.getElementById('dm-list');
+  list.innerHTML = dmUsers.map(u => `
+    <div class="channel-item dm-item${activeChat.user === u ? ' active' : ''}"
+         data-user="${u}"
+         onclick="switchToDM('${u}')">
+      <div class="avatar" style="width:20px;height:20px;font-size:10px">${u[0].toUpperCase()}</div>
+      <span>${u}</span>
+      ${onlineUsers.has(u) ? '<div class="online-dot"></div>' : ''}
+    </div>
+  `).join('');
+}
 
+// ══════════════════════════════════════
+// NOTIFICATIONS
+// ══════════════════════════════════════
+async function loadNotifications() {
+  const res = await apiFetch('/api/notify/unread');
+  if (!res) return;
+  const data = await res.json();
+  notifications = data;
+  renderNotifications();
+}
 
-    connect();
-    loadMessages(); //load message on refresh
+function addNotification(n) {
+  notifications.unshift(n);
+  renderNotifications();
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notif-list');
+  const bubble = document.getElementById('notif-bubble');
+
+  if (notifications.length === 0) {
+    list.innerHTML = '<div class="notif-empty">No new notifications</div>';
+    bubble.style.display = 'none';
+    return;
+  }
+
+  bubble.style.display = 'flex';
+  bubble.textContent = notifications.length > 9 ? '9+' : notifications.length;
+
+  list.innerHTML = notifications.map(n => `
+    <div class="notif-item" onclick="handleNotifClick(${n.id}, '${escHtml(n.message)}')">
+      <div class="notif-item-dot"></div>
+      <div class="notif-item-text">${escHtml(n.message)}</div>
+    </div>
+  `).join('');
+}
+
+async function handleNotifClick(id, message) {
+  // Mark as read
+  await apiFetch(`/api/notify/read/${id}`, { method: 'POST' });
+  notifications = notifications.filter(n => n.id !== id);
+  renderNotifications();
+
+  // If it's a private message notification, open that DM
+  const match = message.match(/Private message from (.+)/);
+  if (match) {
+    switchToDM(match[1]);
+  }
+
+  document.getElementById('notif-dropdown').classList.remove('open');
+}
+
+function toggleNotifDropdown() {
+  document.getElementById('notif-dropdown').classList.toggle('open');
+}
+
+// ══════════════════════════════════════
+// ONLINE USERS
+// ══════════════════════════════════════
+async function loadOnlineUsers() {
+  const res = await apiFetch('/api/presence/online');
+  if (!res) return;
+  const data = await res.json();
+  onlineUsers = new Set(data);
+  renderOnlineUsers();
+  renderDmList();
+}
+
+function renderOnlineUsers() {
+  const list = document.getElementById('online-list');
+  const others = [...onlineUsers].filter(u => u !== currentUser);
+
+  if (others.length === 0) {
+    list.innerHTML = '<div style="padding:6px 16px;font-size:12px;color:var(--muted)">Just you</div>';
+    return;
+  }
+
+  list.innerHTML = others.map(u => `
+    <div class="online-user-item" onclick="switchToDM('${u}')">
+      <div class="online-dot"></div>
+      <span>${u}</span>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════
+let toastTimer = null;
+function showToast(msg, type = '') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 3000);
+}
 </script>
-
 </body>
 </html>

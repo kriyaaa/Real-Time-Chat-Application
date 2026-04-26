@@ -28,7 +28,9 @@ public class SecurityConfig {
                 .authenticationProvider(provider)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
-                        .anyRequest().permitAll()
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/", "/chat.html", "/index.html", "/static/**", "/webjars/**").permitAll()
+                        .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
@@ -46,9 +48,7 @@ public class SecurityConfig {
 
         DaoAuthenticationProvider provider =
                 new DaoAuthenticationProvider(userDetailsService);
-
         provider.setPasswordEncoder(passwordEncoder);
-
         return provider;
     }
 

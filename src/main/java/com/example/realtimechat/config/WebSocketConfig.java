@@ -11,10 +11,21 @@ import org.springframework.web.socket.server.support.HttpSessionHandshakeInterce
 @EnableWebSocketMessageBroker
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
+    private final UserHandshakeHandler userHandshakeHandler;
+
+    public WebSocketConfig(UserHandshakeHandler userHandshakeHandler) {
+        this.userHandshakeHandler = userHandshakeHandler;
+    }
+
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")   // allow frontend
+                .setAllowedOriginPatterns("*")
+                // Pass the real JWT-resolved HandshakeHandler so that
+                // SimpMessagingTemplate.convertAndSendToUser() routes to
+                // the correct user queue (e.g. /user/{username}/queue/messages).
+                .setHandshakeHandler(userHandshakeHandler)
+                .addInterceptors(new HttpSessionHandshakeInterceptor())
                 .withSockJS();
     }
 
@@ -25,4 +36,3 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setUserDestinationPrefix("/user");
     }
 }
-
